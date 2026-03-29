@@ -1,9 +1,8 @@
-# constraint-solver
+# constraint
 
-Constraint satisfaction problem solver. Zero-dependency, single-file Python CLI.
+constraint: Single-file Python CLI tool. Zero dependencies, Python 3.8+.
 
 ## Usage
-
 ```bash
-python3 constraint.py --help
+python3 constraint.py --test
 ```

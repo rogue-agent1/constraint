@@ -1,64 +1,105 @@
-import argparse, json, itertools
+#!/usr/bin/env python3
+"""constraint - Constraint satisfaction problem solver."""
+import sys, itertools
 
-def solve(variables, domains, constraints):
-    """Simple backtracking CSP solver"""
-    assignment = {}
-    def consistent(var, val):
-        assignment[var] = val
-        for (v1, op, v2) in constraints:
-            if v1 in assignment and v2 in assignment:
-                a, b = assignment[v1], assignment[v2]
-                if op == "!=" and a == b: del assignment[var]; return False
-                if op == "==" and a != b: del assignment[var]; return False
-                if op == "<" and a >= b: del assignment[var]; return False
-                if op == ">" and a <= b: del assignment[var]; return False
-        del assignment[var]
-        return True
-    def backtrack(i):
-        if i == len(variables): return dict(assignment)
-        var = variables[i]
-        for val in domains[var]:
-            if consistent(var, val):
-                assignment[var] = val
-                result = backtrack(i + 1)
-                if result: return result
-                del assignment[var]
+class Variable:
+    def __init__(self, name, domain):
+        self.name = name
+        self.domain = list(domain)
+
+class Constraint:
+    def __init__(self, variables, predicate):
+        self.variables = variables
+        self.predicate = predicate
+
+    def satisfied(self, assignment):
+        vals = []
+        for v in self.variables:
+            if v not in assignment:
+                return True
+            vals.append(assignment[v])
+        return self.predicate(*vals)
+
+class CSP:
+    def __init__(self):
+        self.variables = {}
+        self.constraints = []
+
+    def add_variable(self, name, domain):
+        self.variables[name] = Variable(name, domain)
+        return self
+
+    def add_constraint(self, var_names, predicate):
+        self.constraints.append(Constraint(var_names, predicate))
+        return self
+
+    def all_different(self, var_names):
+        for i in range(len(var_names)):
+            for j in range(i + 1, len(var_names)):
+                self.add_constraint([var_names[i], var_names[j]], lambda a, b: a != b)
+        return self
+
+    def solve(self):
+        return self._backtrack({})
+
+    def _backtrack(self, assignment):
+        if len(assignment) == len(self.variables):
+            return dict(assignment)
+        unassigned = [v for v in self.variables if v not in assignment]
+        var = min(unassigned, key=lambda v: len(self.variables[v].domain))
+        for value in self.variables[var].domain:
+            assignment[var] = value
+            if all(c.satisfied(assignment) for c in self.constraints):
+                result = self._backtrack(assignment)
+                if result is not None:
+                    return result
+            del assignment[var]
         return None
-    return backtrack(0)
 
-def main():
-    p = argparse.ArgumentParser(description="CSP solver")
-    p.add_argument("file", nargs="?", help="JSON CSP definition")
-    p.add_argument("--nqueens", type=int, help="Solve N-Queens")
-    args = p.parse_args()
-    if args.nqueens:
-        n = args.nqueens
-        variables = [f"q{i}" for i in range(n)]
-        domains = {v: list(range(n)) for v in variables}
-        constraints = []
-        for i in range(n):
-            for j in range(i+1, n):
-                constraints.append((f"q{i}", "!=", f"q{j}"))
-        result = solve(variables, domains, constraints)
-        # Post-check diagonals
-        if result:
-            for i in range(n):
-                for j in range(i+1, n):
-                    if abs(result[f"q{i}"] - result[f"q{j}"]) == j - i:
-                        result = None; break
-                if not result: break
-        if result:
-            for i in range(n):
-                row = ["." if j != result[f"q{i}"] else "Q" for j in range(n)]
-                print(" ".join(row))
-        else:
-            print("No solution found")
-    elif args.file:
-        csp = json.load(open(args.file))
-        result = solve(csp["variables"], csp["domains"], [tuple(c) for c in csp["constraints"]])
-        if result: print(json.dumps(result, indent=2))
-        else: print("No solution")
-    else: p.print_help()
+    def solve_all(self, limit=100):
+        solutions = []
+        self._backtrack_all({}, solutions, limit)
+        return solutions
+
+    def _backtrack_all(self, assignment, solutions, limit):
+        if len(solutions) >= limit:
+            return
+        if len(assignment) == len(self.variables):
+            solutions.append(dict(assignment))
+            return
+        unassigned = [v for v in self.variables if v not in assignment]
+        var = unassigned[0]
+        for value in self.variables[var].domain:
+            assignment[var] = value
+            if all(c.satisfied(assignment) for c in self.constraints):
+                self._backtrack_all(assignment, solutions, limit)
+            del assignment[var]
+
+def test():
+    csp = CSP()
+    csp.add_variable("A", [1, 2, 3])
+    csp.add_variable("B", [1, 2, 3])
+    csp.add_variable("C", [1, 2, 3])
+    csp.all_different(["A", "B", "C"])
+    sol = csp.solve()
+    assert sol is not None
+    assert len(set(sol.values())) == 3
+    all_sols = csp.solve_all()
+    assert len(all_sols) == 6
+    csp2 = CSP()
+    csp2.add_variable("X", [1, 2, 3, 4])
+    csp2.add_variable("Y", [1, 2, 3, 4])
+    csp2.add_constraint(["X", "Y"], lambda x, y: x + y == 5)
+    sol2 = csp2.solve()
+    assert sol2["X"] + sol2["Y"] == 5
+    all2 = csp2.solve_all()
+    assert len(all2) == 4
+    csp3 = CSP()
+    csp3.add_variable("A", [1])
+    csp3.add_variable("B", [1])
+    csp3.all_different(["A", "B"])
+    assert csp3.solve() is None
+    print("All tests passed!")
 
 if __name__ == "__main__":
-    main()
+    test() if "--test" in sys.argv else print("constraint: CSP solver. Use --test")
