@@ -1,8 +1,7 @@
 # constraint
-
-constraint: Single-file Python CLI tool. Zero dependencies, Python 3.8+.
-
+#!/usr/bin/env python3
 ## Usage
 ```bash
-python3 constraint.py --test
+python3 constraint.py --help
 ```
+Single-file Python, zero dependencies.
